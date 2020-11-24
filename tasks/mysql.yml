@@ -1,42 +1,30 @@
 ---
-- hosts: localhost
-  become: true
-  vars_files:
-    - vars.yml
+ - name: Install the MySQL packages
+   apt: name={{ item }} state=installed update_cache=yes
+   with_items:
+     - mysql-server-5.6
+     - mysql-client-5.6
+     - python-mysqldb
+     - libmysqlclient-dev
 
-  tasks:
-    - name: Install MySQL
-      action: apt pkg=$item state=installed
-      with_items:
-        - mysql-server-core-5.5
-        - mysql-client-core-5.5
-        - libmysqlclient-dev
-        - python-mysqldb
-        - mysql-server
-        - mysql-client
+ - name: Update MySQL root password for all root accounts
+   mysql_user: name=root host={{ item }} password={{ mysql_root_pass }} state=present
+   with_items:
+     - "{{ ansible_hostname }}"
+     - 127.0.0.1
+     - ::1
+     - localhost
 
-    - name: Start the MySQL service
-      action: service name=mysql state=started
+ - name: Copy the root credentials as .my.cnf file
+   template: src=root.cnf.j2 dest=~/.my.cnf mode=0600
 
-    - name: Remove the test database
-      mysql_db: name=test state=absent
+ - name: Ensure Anonymous user(s) are not in the database
+   mysql_user: name='' host={{ item }} state=absent
+   with_items:
+     - localhost
+     - "{{ ansible_hostname }}"
 
-    - name: Create deploy user for mysql
-      mysql_user: user="deploy" host="%" password={{mysql_root_password}} priv=*.*:ALL,GRANT
-
-    - name: Ensure anonymous users are not in the database
-      mysql_user: user='' host=$item state=absent
-      with_items:
-        - 127.0.0.1
-        - ::1
-        - localhost
-
-    - name: Copy .my.cnf file with root password credentials
-      template: src=templates/.my.cnf dest=/etc/mysql/my.cnf owner=root mode=0600
-
-    - name: Update mysql root password for all root accounts
-      mysql_user: name=root host={{item}} password={{mysql_root_password}}
-      with_items:
-        - 127.0.0.1
-        - ::1
-        - localhost
+ - name: Remove the test database
+   mysql_db: name=test state=absent
+   notify:
+     - Restart MySQL
