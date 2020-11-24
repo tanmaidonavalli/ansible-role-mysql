@@ -1,1 +1,1 @@
-mysql_root_password: <PASS>
+mysql_root_pass: mypassword #MySQL Root Password
