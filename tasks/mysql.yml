@@ -1,30 +1,38 @@
----
- - name: Install the MySQL packages
-   apt: name={{ item }} state=installed update_cache=yes
-   with_items:
-     - mysql-server-5.6
-     - mysql-client-5.6
-     - python-mysqldb
-     - libmysqlclient-dev
+—--
+– name: Install Packages
+hosts: all
+vars:
+root_db_password: Password123
 
- - name: Update MySQL root password for all root accounts
-   mysql_user: name=root host={{ item }} password={{ mysql_root_pass }} state=present
-   with_items:
-     - "{{ ansible_hostname }}"
-     - 127.0.0.1
-     - ::1
-     - localhost
+tasks:
 
- - name: Copy the root credentials as .my.cnf file
-   template: src=root.cnf.j2 dest=~/.my.cnf mode=0600
+– name: Download MySQL Community Repo
+  get_url:
+  url: http://repo.mysql.com/mysql-community-release-el7-7.noarch.rpm
+  dest: /tmp
 
- - name: Ensure Anonymous user(s) are not in the database
-   mysql_user: name='' host={{ item }} state=absent
-   with_items:
-     - localhost
-     - "{{ ansible_hostname }}"
+– name: Install MySQL Community Repo
+  command: /usr/bin/rpm -ivh /tmp/mysql-community-release-el7-7.noarch.rpm
 
- - name: Remove the test database
-   mysql_db: name=test state=absent
-   notify:
-     - Restart MySQL
+– name: Install MySQL Server
+  yum: name=mysql-server state=present
+
+– name: Install MySQL-python, this is required for the task remove anonymous user
+  yum: name=MySQL-python state=present
+
+– name: Start MySQL Server and enable it
+  service: name=mysqld state=started enabled=yes
+
+– name: Remove Test database if it exist.
+  mysql_db: name=test state=absent
+
+– name: Remove All Anonymous User Accounts
+  mysql_user: name=” host_all=yes state=absent
+
+– name: Change root password
+  mysql_user: name=root host={{item}} password={{root_db_password}}
+  with_items:
+  – “{{ansible_hostname}}”
+  – 127.0.0.1
+  – ::1
+  – localhost
